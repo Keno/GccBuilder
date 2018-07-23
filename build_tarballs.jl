@@ -2,83 +2,75 @@
 # `julia build_tarballs.jl --help` to see a usage message.
 using BinaryBuilder
 
-name = "gcc"
 version = v"7.3.0"
 
 # Collection of sources required to build gcc
-sources = [
+sources = Any[
     "https://mirrors.kernel.org/gnu/gcc/gcc-7.3.0/gcc-7.3.0.tar.xz" =>
     "832ca6ae04636adbb430e865a1451adf6979ab44ca1c8374f61fba65645ce15c",
-
 ]
 
-# Bash recipe for building across all platforms
-script = raw"""
-cd $WORKSPACE/srcdir
-cd gcc-7.3.0/
-contrib/download_prerequisites
-export LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:/lib:/usr/glibc-compat/lib:/usr/local/lib:/usr/lib:/opt/x86_64-linux-gnu/lib64:/opt/x86_64-linux-gnu/lib:/opt/x86_64-linux-gnu/x86_64-linux-gnu/lib64:/opt/x86_64-linux-gnu/x86_64-linux-gnu/lib
-contrib/download_prerequisites
-cd ..
-mkdir gcc_build
-cd gcc_build/
-../gcc-7.3.0/configure --host=$target --prefix=$prefix --enable-host-shared --enable-threads=posix --with-system-zlib --enable-multilib --enable-languages=c,c++,fortran,objc,obj-c++
-make
-ls
-ls /workspace/destdir/include/zlib.h 
-../gcc-7.3.0/configure --host=$target --prefix=$prefix --enable-host-shared --enable-threads=posix --with-system-zlib --enable-multilib --enable-languages=c,c++,fortran,objc,obj-c++ --help
-../gcc-7.3.0/configure --host=$target --prefix=$prefix --enable-host-shared --enable-threads=posix --enable-multilib --enable-languages=c,c++,fortran,objc,obj-c++ --help
-../gcc-7.3.0/configure --host=$target --prefix=$prefix --enable-host-shared --enable-threads=posix --enable-multilib --enable-languages=c,c++,fortran,objc,obj-c++ 
-make -j20
-/workspace/srcdir/gcc_build/./gcc/xgcc
-/workspace/srcdir/gcc_build/./gcc/xgcc -B/workspace/srcdir/gcc_build/./gcc/ -nostdinc -x c /dev/null -S -o /dev/null -fself-test=../../gcc-7.3.0/gcc/testsuite/selftests
-cd gcc/
-/workspace/srcdir/gcc_build/./gcc/xgcc -B/workspace/srcdir/gcc_build/./gcc/ -nostdinc -x c /dev/null -S -o /dev/null -fself-test=../../gcc-7.3.0/gcc/testsuite/selftests
-ldd /workspace/srcdir/gcc_build/./gcc/xgcc -B/workspace/srcdir/gcc_build/./gcc/ -nostdinc -x c /dev/null -S -o /dev/null -fself-test=../../gcc-7.3.0/gcc/testsuite/selftests
-strace -f /workspace/srcdir/gcc_build/./gcc/xgcc -B/workspace/srcdir/gcc_build/./gcc/ -nostdinc -x c /dev/null -S -o /dev/null -fself-test=../../gcc-7.3.0/gcc/testsuite/selftests
-apk add strace
-strace -f /workspace/srcdir/gcc_build/./gcc/xgcc -B/workspace/srcdir/gcc_build/./gcc/ -nostdinc -x c /dev/null -S -o /dev/null -fself-test=../../gcc-7.3.0/gcc/testsuite/selftests
-ls /usr/
-ls /usr/glibc-compat/lib/gconv/gconv-modules 
-echo $GCONV_PATH
-export GCONV_PATH=/usr/glibc-compat/lib/gconv/
-/workspace/srcdir/gcc_build/./gcc/xgcc -B/workspace/srcdir/gcc_build/./gcc/ -nostdinc -x c /dev/null -S -o /dev/null -fself-test=../../gcc-7.3.0/gcc/testsuite/selftests
-cd ..
-make -j20
-ls
-ls
-cd ..
-ls
-cd ..
-ls
-cd destdir/
-ls
-ls
-ls -la
-ls x86_64-linux-gnu/
-ls
-ls
-mv bin/ lib/ include/ x86_64-linux-gnu/
-cd ..
-cd srcdir/gcc_build/
-make
-locate gnu/stubs-32.h
-find / -name gnu/stubs-32.h
-find $WORKSPACE -name gnu/stubs-32.h
-find $WORKSPACE -name stubs-32.h
-find $WORKSPACE -name stubs-64.h
-ls
-mkdir ../../destdir/bin
-mv /workspace/srcdir/gcc_build/./gcc/xgcc ../../destdir/bin/
-cd ../../destdir/bin/
-ls
+common_setup = raw"""
+    cd $WORKSPACE/srcdir
+    cd gcc-7.3.0/
+    contrib/download_prerequisites
+    export LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:/lib:/usr/glibc-compat/lib:/usr/local/lib:/usr/lib:/opt/x86_64-linux-gnu/lib64:/opt/x86_64-linux-gnu/lib:/opt/x86_64-linux-gnu/x86_64-linux-gnu/lib64:/opt/x86_64-linux-gnu/x86_64-linux-gnu/lib
+    cd ..
+    mkdir gcc_build
+    cd gcc_build
+"""
 
+bootstrap_configure = raw"""
+../gcc-7.3.0/configure \
+    --prefix=/opt/x86_64-linux-gnu \
+    --target=x86_64-linux-gnu \
+    --host=x86_64-alpine-linux-musl \
+    --build=x86_64-alpine-linux-musl \
+    --disable-multilib \
+    --disable-werror \
+    --disable-shared \
+    --disable-threads \
+    --disable-libatomic \
+    --disable-decimal-float \
+    --disable-libffi \
+    --disable-libgomp \
+    --disable-libitm \
+    --disable-libmpx \
+    --disable-libquadmath \
+    --disable-libssp \
+    --disable-libsanitizer \
+    --without-headers \
+    --with-newlib \
+    --disable-bootstrap \
+    --enable-languages=c \
+    --with-sysroot="/opt/x86_64-linux-gnu/x86_64-linux-gnu/sys-root" \
+    ${GCC_CONF_ARGS}
+"""
+
+main_configure = raw"""
+../gcc-7.3.0/configure --prefix=/opt/x86_64-linux-gnu \
+    --target=x86_64-linux-gnu \
+    --host=x86_64-alpine-linux-musl \
+    --build=x86_64-alpine-linux-musl \
+    --disable-multilib \
+    --disable-werror \
+    --enable-languages=c,c++,fortran \
+    --with-sysroot=/opt/x86_64-linux-gnu/x86_64-linux-gnu/sys-root \
+    --enable-host-shared \
+    --enable-threads=posix \
+    LD=/opt/super_binutils/bin/
+"""
+
+# Bash recipe for building across all platforms
+common_suffix = raw"""
+make -j${nprocs}
+DESTDIR=$WORKSPACE/destdir make install -j20
 """
 
 # These are the platforms we will build for by default, unless further
 # platforms are passed in on the command line
 platforms = [
-    Linux(:x86_64, :glibc)
+    Linux(:x86_64, :musl)
 ]
 
 # The products that we will ensure are always built
@@ -88,10 +80,35 @@ products(prefix) = [
 
 # Dependencies that must be installed before this package can be built
 dependencies = [
-    "https://github.com/staticfloat/GlibcBuilder/releases/download/v2.27-0/build_Glibc.v2.12.2.jl",
+#    "https://github.com/staticfloat/GlibcBuilder/releases/download/v2.27-0/build_Glibc.v2.12.2.jl",
     "https://github.com/bicycle1885/ZlibBuilder/releases/download/v1.0.1/build_Zlib.v1.2.11.jl"
 ]
 
-# Build the tarballs, and possibly a `build.jl` as well.
-build_tarballs(ARGS, name, version, sources, script, platforms, products, dependencies)
+# Build a boostrap configure
+bootstrap_script = """
+$common_setup
+$bootstrap_configure
+$common_suffix
+"""
+bootstrap_path = joinpath(@__DIR__, "products", "gcc_boostrap.v7.3.0.x86_64-linux-gnu.tar.gz")
+if !isfile(bootstrap_path)
+    product_hashes = build_tarballs(ARGS, "gcc_boostrap", version, sources, bootstrap_script, platforms, products, dependencies)
+    _, bootstrap_hash = product_hashes["x86_64-linux-gnu"]
+else
+    using SHA: sha256
+    bootstrap_hash = open(bootstrap_path) do f
+        bytes2hex(sha256(f))
+    end
+end
 
+push!(sources, Ref("../GlibcBuilder/products/Glibc.v2.12.2.x86_64-linux-gnu.tar.gz" => "7d81df29ec9dfe858244b12a03eb4cc403da84637f458f6e12b6e482dace8d30"))
+
+# Build the tarballs, and possibly a `build.jl` as well.
+main_script = """
+mkdir -p /opt/x86_64-linux-gnu
+tar -C /opt/x86_64-linux-gnu -xvf Glibc.v2.12.2.x86_64-linux-gnu.tar.gz
+$common_setup
+$main_configure
+$common_suffix
+"""
+build_tarballs(ARGS, "gcc", version, sources, main_script, platforms, products, dependencies)
